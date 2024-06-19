@@ -516,6 +516,47 @@ static bool is_app_accessible_path(MediaProviderWrapper* mp, const string& path,
     return true;
 }
 
+
+static const string Download = "Download";
+static const string Movies = "Movies";
+static const string Music = "Music";
+static const string Pictures = "Pictures";
+static const string Documents = "Documents";
+
+
+
+static string compatible_name(string name, string parent_path ) {
+    std::smatch match;
+    std::regex_search(parent_path, match, storage_emulated_regex);
+    if (match.size() == 2 {
+        std::string lowercaseName = name;
+        std::transform(lowercaseName.begin(), lowercaseName.end(), lowercaseName.begin(), ::tolower);
+        switch lowercaseName {
+            case "documents":
+            {
+                return Documents;
+            }
+            case "download":
+            {
+                return Download;
+            }
+            case "movies":
+            {
+                return Movies;
+            }
+            case "music":
+            {
+                return Music;
+            }
+            case "pictures":
+            {
+                return Pictures;
+            }
+        }
+    }
+    return name;
+}
+
 static std::regex storage_emulated_regex("^\\/storage\\/emulated\\/([0-9]+)");
 static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
                        struct fuse_entry_param* e, int* error_code) {
@@ -532,8 +573,8 @@ static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
         *error_code = ENOENT;
         return nullptr;
     }
-
-    string child_path = parent_path + "/" + name;
+    
+    string child_path = parent_path + "/" + compatible_name(name,parent_path);
 
     TRACE_NODE(parent_node, req);
 
@@ -859,7 +900,17 @@ static void pf_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
         return;
     }
     TRACE_NODE(parent_node, req);
-
+    std::smatch match;
+    std::regex_search(parent_path, match, storage_emulated_regex);
+    if (match.size() == 2 {
+        switch name {
+            case Documents, Download, Movies, Music, Pictures:
+            {
+                fuse_reply_err(req, EACCES);
+                return;
+            }
+        }
+    }
     const string child_path = parent_path + "/" + name;
 
     int status = fuse->mp->IsDeletingDirAllowed(child_path, req->ctx.uid);
