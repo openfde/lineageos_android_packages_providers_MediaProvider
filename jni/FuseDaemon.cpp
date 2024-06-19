@@ -516,7 +516,39 @@ static bool is_app_accessible_path(MediaProviderWrapper* mp, const string& path,
     return true;
 }
 
+
+static const string Download = "Download";
+static const string Movies = "Movies";
+static const string Music = "Music";
+static const string Pictures = "Pictures";
+static const string Documents = "Documents";
+
+
 static std::regex storage_emulated_regex("^\\/storage\\/emulated\\/([0-9]+)");
+
+static string compatible_name(string name, string parent_path ) {
+    std::smatch match;
+    std::regex_search(parent_path, match, storage_emulated_regex);
+    if ((match.size() == 2) &&   (std::count(parent_path.begin(), parent_path.end(), '/') == 3)) {
+        std::string lowercaseName = name;
+        std::transform(lowercaseName.begin(), lowercaseName.end(), lowercaseName.begin(), ::tolower);
+	 if (lowercaseName == "documents") {
+            return Documents;
+        } else if (lowercaseName == "download") {
+            return Download;
+        } else if (lowercaseName == "movies") {
+            return Movies;
+        } else if (lowercaseName == "music") {
+            return Music;
+        } else if (lowercaseName == "pictures") {
+            return Pictures;
+        }else {
+           return name;
+       }
+    }
+    return name;
+}
+
 static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
                        struct fuse_entry_param* e, int* error_code) {
     struct fuse* fuse = get_fuse(req);
@@ -532,8 +564,8 @@ static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
         *error_code = ENOENT;
         return nullptr;
     }
-
-    string child_path = parent_path + "/" + name;
+    
+    string child_path = parent_path + "/" + compatible_name(name,parent_path);
 
     TRACE_NODE(parent_node, req);
 
@@ -859,7 +891,14 @@ static void pf_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
         return;
     }
     TRACE_NODE(parent_node, req);
-
+    std::smatch match;
+    std::regex_search(parent_path, match, storage_emulated_regex);
+    if ((match.size() == 2) &&   (std::count(parent_path.begin(), parent_path.end(), '/') == 3)) {
+        if (name == Documents || name == Download || name == Movies || name == Music || name == Pictures) {
+            fuse_reply_err(req, EPERM);
+            return;
+    	}
+    }
     const string child_path = parent_path + "/" + name;
 
     int status = fuse->mp->IsDeletingDirAllowed(child_path, req->ctx.uid);
