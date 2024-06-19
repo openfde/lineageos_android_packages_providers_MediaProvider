@@ -524,40 +524,31 @@ static const string Pictures = "Pictures";
 static const string Documents = "Documents";
 
 
+static std::regex storage_emulated_regex("^\\/storage\\/emulated\\/([0-9]+)");
 
 static string compatible_name(string name, string parent_path ) {
     std::smatch match;
     std::regex_search(parent_path, match, storage_emulated_regex);
-    if (match.size() == 2 {
+    if ((match.size() == 2) &&   (std::count(parent_path.begin(), parent_path.end(), '/') == 3)) {
         std::string lowercaseName = name;
         std::transform(lowercaseName.begin(), lowercaseName.end(), lowercaseName.begin(), ::tolower);
-        switch lowercaseName {
-            case "documents":
-            {
-                return Documents;
-            }
-            case "download":
-            {
-                return Download;
-            }
-            case "movies":
-            {
-                return Movies;
-            }
-            case "music":
-            {
-                return Music;
-            }
-            case "pictures":
-            {
-                return Pictures;
-            }
-        }
+	 if (lowercaseName == "documents") {
+            return Documents;
+        } else if (lowercaseName == "download") {
+            return Download;
+        } else if (lowercaseName == "movies") {
+            return Movies;
+        } else if (lowercaseName == "music") {
+            return Music;
+        } else if (lowercaseName == "pictures") {
+            return Pictures;
+        }else {
+           return name;
+       }
     }
     return name;
 }
 
-static std::regex storage_emulated_regex("^\\/storage\\/emulated\\/([0-9]+)");
 static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
                        struct fuse_entry_param* e, int* error_code) {
     struct fuse* fuse = get_fuse(req);
@@ -902,14 +893,11 @@ static void pf_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
     TRACE_NODE(parent_node, req);
     std::smatch match;
     std::regex_search(parent_path, match, storage_emulated_regex);
-    if (match.size() == 2 {
-        switch name {
-            case Documents, Download, Movies, Music, Pictures:
-            {
-                fuse_reply_err(req, EACCES);
-                return;
-            }
-        }
+    LOG(DEBUG)<<"rmdir parent_path " << parent_path << match.size() << std::count(parent_path.begin(),parent_path.end(),'/');
+    if ((match.size() == 2) &&   (std::count(parent_path.begin(), parent_path.end(), '/') == 3)) {
+        if (name == "Documents" || name == "Download" || name == "Movies" || name == "Music" || name == "Pictures") {
+            fuse_reply_err(req, EACCES);
+            return;
     }
     const string child_path = parent_path + "/" + name;
 
