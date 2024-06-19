@@ -898,6 +898,7 @@ static void pf_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
         if (name == "Documents" || name == "Download" || name == "Movies" || name == "Music" || name == "Pictures") {
             fuse_reply_err(req, EACCES);
             return;
+    	}
     }
     const string child_path = parent_path + "/" + name;
 
