@@ -565,7 +565,8 @@ static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
         return nullptr;
     }
     
-    string child_path = parent_path + "/" + compatible_name(name,parent_path);
+    string unique_name =  compatible_name(name,parent_path);
+    string child_path = parent_path + "/" + unique_name;
 
     TRACE_NODE(parent_node, req);
 
@@ -576,7 +577,7 @@ static node* do_lookup(fuse_req_t req, fuse_ino_t parent, const char* name,
         *error_code = EPERM;
         return nullptr;
     }
-    return make_node_entry(req, parent_node, name, child_path, e, error_code);
+    return make_node_entry(req, parent_node, unique_name, child_path, e, error_code);
 }
 
 static void pf_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
