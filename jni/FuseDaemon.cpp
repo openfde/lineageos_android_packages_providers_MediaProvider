@@ -1057,6 +1057,8 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     if (open_flags & O_APPEND) {
         open_flags &= ~O_APPEND;
     }
+    //scan file to update the info which edited by linux
+    fuse->mp->ScanFile(path);
 
     const int fd = open(path.c_str(), open_flags);
     if (fd < 0) {
@@ -1080,7 +1082,7 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 
     handle* h = create_handle_for_node(fuse, path, fd, node, ri.release());
     fi->fh = ptr_to_id(h);
-    fi->keep_cache = 1;
+    fi->keep_cache = 0;
     fi->direct_io = !h->cached;
     fuse_reply_open(req, fi);
 }
