@@ -1126,15 +1126,54 @@ public class MediaProvider extends ContentProvider {
     }
 
     public void scanDirectory(File file, int reason) {
-        mMediaScanner.scanDirectory(file, reason);
+        mMediaScanner.scanDirectory(compatiblePath(file), reason);
+    }
+
+    final String Documents = "Documents", documents = "documents";
+    final String Music = "Music", music = "music";
+    final String Movies = "Movies", movies = "movies";
+    final String Pictures = "Pictures", pictures = "pictures";
+    final String Download = "Download", download = "download";
+
+    private File compatiblePath(File file) {
+        String[] pathSegments = file.getParent().split("/");
+        // /storage/emulated/0/documents/xxx will split by "/" to
+        // ["","storage","emulated","0","documents","xxx"]
+        // replace documents(pathSegments[4]) with Documents
+        if (pathSegments.length >= 5) {
+            switch (pathSegments[4]) {
+                case documents:
+                    pathSegments[4] = Documents;
+                    break;
+                case music:
+                    pathSegments[4] = Music;
+                    break;
+                case movies:
+                    pathSegments[4] = Movies;
+                    break;
+                case pictures:
+                    pathSegments[4] = Pictures;
+                    break;
+                case download:
+                    pathSegments[4] = Download;
+                    break;
+                default:
+                   break;
+           }
+            String newPath = String.join("/", pathSegments);
+            File newFile = new File(newPath, file.getName());
+            return newFile;
+        } else {
+            return file;
+        }
     }
 
     public Uri scanFile(File file, int reason) {
-        return mMediaScanner.scanFile(file, reason);
+        return mMediaScanner.scanFile(compatiblePath(file), reason);
     }
 
     public Uri scanFile(File file, int reason, String ownerPackage) {
-        return mMediaScanner.scanFile(file, reason, ownerPackage);
+        return mMediaScanner.scanFile(compatiblePath(file), reason, ownerPackage);
     }
 
     /**
@@ -1145,7 +1184,8 @@ public class MediaProvider extends ContentProvider {
      */
     @Keep
     public void scanFileForFuse(String file) {
-        scanFile(new File(file), REASON_DEMAND);
+        BackgroundThread.getExecutor().execute(() -> {
+            scanFile(new File(file), REASON_DEMAND);
     }
 
     /**
