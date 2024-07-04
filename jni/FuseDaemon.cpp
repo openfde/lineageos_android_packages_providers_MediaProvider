@@ -1083,7 +1083,7 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     handle* h = create_handle_for_node(fuse, path, fd, node, ri.release());
     fi->fh = ptr_to_id(h);
     fi->keep_cache = 0;
-    fi->direct_io = !h->cached;
+    fi->direct_io = true;
     fuse_reply_open(req, fi);
 }
 
