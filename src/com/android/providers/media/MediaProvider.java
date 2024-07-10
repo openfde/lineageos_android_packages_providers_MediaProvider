@@ -1184,9 +1184,7 @@ public class MediaProvider extends ContentProvider {
      */
     @Keep
     public void scanFileForFuse(String file) {
-        BackgroundThread.getExecutor().execute(() -> {
-            scanFile(new File(file), REASON_DEMAND);
-	});
+    	scanFile(new File(file), REASON_DEMAND);
     }
 
     /**
