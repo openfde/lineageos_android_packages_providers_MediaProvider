@@ -522,6 +522,7 @@ static const string Movies = "Movies";
 static const string Music = "Music";
 static const string Pictures = "Pictures";
 static const string Documents = "Documents";
+static const string Android = "Android";
 
 
 static std::regex storage_emulated_regex("^\\/storage\\/emulated\\/([0-9]+)");
@@ -1058,7 +1059,28 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         open_flags &= ~O_APPEND;
     }
     //scan file to update the info which edited by linux
-    fuse->mp->ScanFile(path);
+    std::smatch match;
+    std::regex_search(path, match, storage_emulated_regex);
+    //"/storage/emulated/0/example.wps"
+    if (match.size() == 2 && count(path.begin(), path.end(), '/') >= 4 ){
+	std::string component;
+	size_t start = 0 ;
+	size_t end = path.find('/');
+	std::vector<std::string> pathComponents;
+	while (end != std::string::npos) {
+            component = path.substr(start, end - start);
+	    pathComponents.push_back(component);
+	    start = end + 1;
+	    end = path.find('/', start);
+	}
+
+    	if (pathComponents.size() >= 5 &&  pathComponents[4] == Android ) {
+	//do not to scan files below /storage/emulated/0/Android
+	}
+	else{
+            fuse->mp->ScanFile(path);
+	}
+    }
 
     const int fd = open(path.c_str(), open_flags);
     if (fd < 0) {
