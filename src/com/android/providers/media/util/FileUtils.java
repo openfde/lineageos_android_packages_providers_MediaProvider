@@ -89,6 +89,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class FileUtils {
+     public static final String DIRECTORY_DESKTOP = "Desktop";
+
     /**
      * Drop-in replacement for {@link ParcelFileDescriptor#open(File, int)}
      * which adds security features like {@link OsConstants#O_CLOEXEC} and
@@ -927,6 +929,7 @@ public class FileUtils {
             Environment.DIRECTORY_DCIM,
             Environment.DIRECTORY_DOCUMENTS,
             Environment.DIRECTORY_AUDIOBOOKS,
+            DIRECTORY_DESKTOP
     };
 
     /**
