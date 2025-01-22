@@ -521,6 +521,7 @@ static const string Download = "Download";
 static const string Movies = "Movies";
 static const string Music = "Music";
 static const string Pictures = "Pictures";
+static const string Desktop = "Desktop";
 static const string Documents = "Documents";
 static const string Android = "Android";
 
@@ -543,6 +544,8 @@ static string compatible_name(string name, string parent_path ) {
             return Music;
         } else if (lowercaseName == "pictures") {
             return Pictures;
+        } else if (lowercaseName == "desktop") {
+            return Desktop;
         }else {
            return name;
        }
@@ -896,7 +899,7 @@ static void pf_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
     std::smatch match;
     std::regex_search(parent_path, match, storage_emulated_regex);
     if ((match.size() == 2) &&   (std::count(parent_path.begin(), parent_path.end(), '/') == 3)) {
-        if (name == Documents || name == Download || name == Movies || name == Music || name == Pictures) {
+        if (name == Documents || name == Download || name == Movies || name == Music || name == Pictures || name == Desktop) {
             fuse_reply_err(req, EPERM);
             return;
     	}

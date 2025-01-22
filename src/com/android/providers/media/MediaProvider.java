@@ -1134,6 +1134,7 @@ public class MediaProvider extends ContentProvider {
     final String Movies = "Movies", movies = "movies";
     final String Pictures = "Pictures", pictures = "pictures";
     final String Download = "Download", download = "download";
+    final String Desktop = "Desktop", desktop = "desktop";
 
     private File compatiblePath(File file) {
         String[] pathSegments = file.getParent().split("/");
@@ -1156,6 +1157,9 @@ public class MediaProvider extends ContentProvider {
                     break;
                 case download:
                     pathSegments[4] = Download;
+                    break;
+                case desktop:
+                    pathSegments[4] = Desktop;
                     break;
                 default:
                    break;
