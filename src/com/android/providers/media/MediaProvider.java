@@ -594,6 +594,9 @@ public class MediaProvider extends ContentProvider {
 
     private final void updateQuotaTypeForFileInternal(File file, int mediaType) {
         try {
+            String filePath = file.getPath();
+            Log.w(TAG, "filePath:" + filePath + ",mediaType: "+mediaType);
+
             switch (mediaType) {
                 case FileColumns.MEDIA_TYPE_AUDIO:
                     mStorageManager.updateExternalStorageFileQuotaType(file,
@@ -612,9 +615,18 @@ public class MediaProvider extends ContentProvider {
                             StorageManager.QUOTA_TYPE_MEDIA_NONE);
                     break;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             Log.w(TAG, "Failed to update quota type for " + file.getPath(), e);
         }
+    }
+
+    private void updateDesktopFile(String path,String mode){
+        Log.w(TAG, "updateDesktopFile---- mode: " + mode  + ",path： "+path);
+        Intent intent = new Intent("com.fde.desktop.file.update");
+        intent.putExtra("mode", mode);
+        intent.putExtra("path", path);
+        intent.setPackage("com.android.documentsui");
+        getContext().sendBroadcast(intent);
     }
 
     /**
@@ -634,6 +646,16 @@ public class MediaProvider extends ContentProvider {
                 if (helper.isExternal()) {
                     // Update the quota type on the filesystem
                     Uri fileUri = MediaStore.Files.getContentUri(volumeName, id);
+                    try {
+                        File file = queryForDataFile(fileUri, null);
+                        String newPath = file.getPath();
+                        if(newPath.contains("Desktop")){
+                            updateDesktopFile(newPath,"onInsert");
+                        }    
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    
                     updateQuotaTypeForUri(fileUri, mediaType);
                 }
 
@@ -649,6 +671,8 @@ public class MediaProvider extends ContentProvider {
                 String oldOwnerPackage, String newOwnerPackage, String oldPath) {
             final boolean isDownload = oldIsDownload || newIsDownload;
             final Uri fileUri = MediaStore.Files.getContentUri(volumeName, oldId);
+
+            Log.w(TAG, "onUpdate---- oldPath:  " + oldPath +",fileUri: "+fileUri +",oldId: "+oldId+",oldOwnerPackage: "+oldOwnerPackage+",newOwnerPackage: "+newOwnerPackage+",newId: "+newId);
             handleUpdatedRowForFuse(oldPath, oldOwnerPackage, oldId, newId);
             handleOwnerPackageNameChange(oldPath, oldOwnerPackage, newOwnerPackage);
             acceptWithExpansion(helper::notifyUpdate, volumeName, oldId, oldMediaType, isDownload);
@@ -656,6 +680,18 @@ public class MediaProvider extends ContentProvider {
             helper.postBackground(() -> {
                 if (helper.isExternal()) {
                     // Update the quota type on the filesystem
+                    try {
+                        Uri newFileUri = MediaStore.Files.getContentUri(volumeName, newId);
+                        File file = queryForDataFile(newFileUri, null);
+                        String newPath = file.getPath();
+                        if(newPath !=null && newPath.contains("Desktop")){
+                            updateDesktopFile(newPath,"onUpdate");
+                        }else if(oldPath !=null && oldPath.contains("Desktop")){
+                            updateDesktopFile(oldPath,"onUpdate");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                     updateQuotaTypeForUri(fileUri, newMediaType);
                 }
             });
@@ -674,6 +710,11 @@ public class MediaProvider extends ContentProvider {
         @Override
         public void onDelete(@NonNull DatabaseHelper helper, @NonNull String volumeName, long id,
                 int mediaType, boolean isDownload, String ownerPackageName, String path) {
+            // Log.w(TAG, "onDelete---- path:  " + path +",volumeName: "+volumeName +",id: "+id+",ownerPackageName: "+ownerPackageName+",mediaType: "+mediaType+",isDownload: "+isDownload);
+            if(path !=null && path.contains("Desktop")){
+                updateDesktopFile(path,"onDelete");
+            }
+            
             handleDeletedRowForFuse(path, ownerPackageName, id);
             acceptWithExpansion(helper::notifyDelete, volumeName, id, mediaType, isDownload);
 
@@ -6073,6 +6114,7 @@ public class MediaProvider extends ContentProvider {
      */
     Cursor queryForSingleItem(Uri uri, String[] projection, String selection,
             String[] selectionArgs, CancellationSignal signal) throws FileNotFoundException {
+
         final Cursor c = query(uri, projection,
                 DatabaseUtils.createSqlQueryBundle(selection, selectionArgs, null), signal);
         if (c == null) {
