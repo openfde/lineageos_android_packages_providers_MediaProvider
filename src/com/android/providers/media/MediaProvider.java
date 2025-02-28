@@ -432,6 +432,12 @@ public class MediaProvider extends ContentProvider {
     static final String INCLUDED_DEFAULT_DIRECTORIES =
             "android:included-default-directories";
 
+
+    static final String PKG_DOCUMENTUI =
+            "com.android.documentsui";       
+            
+    static final String ACTION_UPDATE_DESKTOP_FILE = "com.fde.desktop.file.update";        
+
     /**
      * Value indicating that operations should include database rows matching the criteria defined
      * by this key only when calling package has write permission to the database row or column is
@@ -954,6 +960,15 @@ public class MediaProvider extends ContentProvider {
         }
     }
 
+    private void updateDesktopFile(String path,String mode){
+        Log.w(TAG, "updateDesktopFile---- mode: " + mode  + ",path： "+path);
+        Intent intent = new Intent(ACTION_UPDATE_DESKTOP_FILE);
+        intent.putExtra("mode", mode);
+        intent.putExtra("path", path);
+        intent.setPackage(PKG_DOCUMENTUI);
+        getContext().sendBroadcast(intent);
+    }
+
     private void updateQuotaTypeForFileInternal(File file, int mediaType) {
         try {
             switch (mediaType) {
@@ -974,7 +989,7 @@ public class MediaProvider extends ContentProvider {
                             StorageManager.QUOTA_TYPE_MEDIA_NONE);
                     break;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             Log.w(TAG, "Failed to update quota type for " + file.getPath(), e);
         }
     }
@@ -990,6 +1005,7 @@ public class MediaProvider extends ContentProvider {
         public void onInsert(@NonNull DatabaseHelper helper, @NonNull FileRow insertedRow) {
             if (helper.isDatabaseRecovering()) {
                 // Do not perform any trigger operation if database is recovering
+                Log.w(TAG, "onInsert---- 00000000000");
                 return;
             }
 
@@ -1004,6 +1020,17 @@ public class MediaProvider extends ContentProvider {
                     // Update the quota type on the filesystem
                     Uri fileUri = MediaStore.Files.getContentUri(insertedRow.getVolumeName(),
                             insertedRow.getId());
+                    try {
+                        File file = queryForDataFile(fileUri, null);
+                        String newPath = file.getPath();
+                        Log.w(TAG, "onInsert---- insertedRow:"+insertedRow.getPath() + ", newPath: "+newPath);
+
+                        if(newPath.contains("Desktop")){
+                            updateDesktopFile(newPath,"onInsert");
+                        }    
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }        
                     updateQuotaTypeForUri(insertedRow);
                 }
 
@@ -1027,6 +1054,7 @@ public class MediaProvider extends ContentProvider {
                 // Do not perform any trigger operation if database is recovering
                 return;
             }
+            Log.w(TAG, "onUpdate---- oldRow:"+oldRow.getPath() + ", newRow: "+newRow.getPath());
 
             final boolean isDownload = oldRow.isDownload() || newRow.isDownload();
             final Uri fileUri = MediaStore.Files.getContentUri(oldRow.getVolumeName(),
@@ -1043,6 +1071,17 @@ public class MediaProvider extends ContentProvider {
             helper.postBackground(() -> {
                 if (helper.isExternal()) {
                     // Update the quota type on the filesystem
+                    try {
+                        String oldPath = oldRow.getPath();
+                        String newPath = newRow.getPath();
+                        if(newPath !=null && newPath.contains("Desktop")){
+                            updateDesktopFile(newPath,"onUpdate");
+                        }else if(oldPath !=null && oldPath.contains("Desktop")){
+                            updateDesktopFile(oldPath,"onUpdate");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                     updateQuotaTypeForUri(newRow);
                 }
 
@@ -1075,7 +1114,11 @@ public class MediaProvider extends ContentProvider {
                 // Do not perform any trigger operation if database is recovering
                 return;
             }
-
+            Log.w(TAG, "onDelete---- path:"+deletedRow.getPath() );
+            String path = deletedRow.getPath();
+            if(path !=null && path.contains("Desktop")){
+                updateDesktopFile(path,"onDelete");
+            }
             handleDeletedRowForFuse(deletedRow.getPath(), deletedRow.getOwnerPackageName(),
                     deletedRow.getId());
             acceptWithExpansion(helper::notifyDelete, deletedRow.getVolumeName(),
