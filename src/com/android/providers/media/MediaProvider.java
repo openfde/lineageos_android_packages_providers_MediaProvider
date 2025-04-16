@@ -965,6 +965,8 @@ public class MediaProvider extends ContentProvider {
         Intent intent = new Intent(ACTION_UPDATE_DESKTOP_FILE);
         intent.putExtra("mode", mode);
         intent.putExtra("path", path);
+        intent.putExtra("packageName", PKG_DOCUMENTUI);
+        intent.putExtra("data", "");
         intent.setPackage(PKG_DOCUMENTUI);
         getContext().sendBroadcast(intent);
     }
