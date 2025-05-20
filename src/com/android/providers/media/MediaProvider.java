@@ -968,7 +968,7 @@ public class MediaProvider extends ContentProvider {
         intent.putExtra("packageName", PKG_DOCUMENTUI);
         intent.putExtra("data", "");
         intent.setPackage(PKG_DOCUMENTUI);
-        getContext().sendBroadcast(intent);
+        //getContext().sendBroadcast(intent);
     }
 
     private void updateQuotaTypeForFileInternal(File file, int mediaType) {
