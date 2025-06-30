@@ -66,6 +66,8 @@
 #include "libfuse_jni/RedactionInfo.h"
 #include "node-inl.h"
 
+#include "android-base/strings.h"
+
 using mediaprovider::fuse::DirectoryEntry;
 using mediaprovider::fuse::dirhandle;
 using mediaprovider::fuse::handle;
@@ -1031,7 +1033,16 @@ static void pf_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         return;
     }
     const struct fuse_ctx* ctx = fuse_req_ctx(req);
-    const string path = node->BuildPath();
+
+    // [phytium add] fix ForClass APP cant play audio
+    const string tmp_path = node->BuildPath();
+    string new_path = tmp_path;
+    if (tmp_path.find("PEPPlatform/pepbooks") && android::base::EndsWith(tmp_path, ".M")) {
+        new_path = android::base::StringReplace(tmp_path, ".M", ".m", true);
+    }
+    const string path = new_path;//node->BuildPath();
+    // [phytium end] fix ForClass APP cant play audio
+
     if (!is_app_accessible_path(fuse->mp, path, ctx->uid)) {
         fuse_reply_err(req, ENOENT);
         return;
@@ -1535,7 +1546,15 @@ static void pf_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 
     // exists() checks are always allowed.
     if (mask == F_OK) {
-        int res = access(path.c_str(), F_OK);
+        int res = -1;
+        // [phytium add] fix ForClass APP cant play audio
+        if (path.find("PEPPlatform/pepbooks") && android::base::EndsWith(path, ".M")) {
+            string new_path = android::base::StringReplace(path, ".M", ".m", true);
+            res = access(new_path.c_str(), F_OK);
+        } else {
+            res = access(path.c_str(), F_OK);
+        }
+        // [phytium end] fix ForClass APP cant play audio
         fuse_reply_err(req, res ? errno : 0);
         return;
     }
