@@ -132,6 +132,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import android.os.Handler;
+import android.os.Looper;
+import android.content.Intent;
 
 /**
  * Modern implementation of media scanner.
@@ -840,7 +843,7 @@ public class ModernMediaScanner implements MediaScanner {
             final ContentProviderOperation.Builder op;
             Trace.beginSection("Scanner.scanItem");
             try {
-                op = scanItem(existingId, realFile, attrs, actualMimeType, actualMediaType,
+                op = scanItem(mContext,existingId, realFile, attrs, actualMimeType, actualMediaType,
                         mVolumeName);
             } finally {
                 Trace.endSection();
@@ -1023,7 +1026,7 @@ public class ModernMediaScanner implements MediaScanner {
      * containing all indexed metadata, suitable for passing to a
      * {@link SQLiteDatabase#replace} operation.
      */
-    private static @Nullable ContentProviderOperation.Builder scanItem(long existingId, File file,
+    private static @Nullable ContentProviderOperation.Builder scanItem(Context mContext,long existingId, File file,
             BasicFileAttributes attrs, String mimeType, int mediaType, String volumeName) {
         if (Objects.equals(file.getName(), ".nomedia")) {
             if (LOGD) Log.d(TAG, "Ignoring .nomedia file: " + file);
@@ -1040,7 +1043,7 @@ public class ModernMediaScanner implements MediaScanner {
             case FileColumns.MEDIA_TYPE_VIDEO:
                 return scanItemVideo(existingId, file, attrs, mimeType, mediaType, volumeName);
             case FileColumns.MEDIA_TYPE_IMAGE:
-                return scanItemImage(existingId, file, attrs, mimeType, mediaType, volumeName);
+                return scanItemImage(mContext,existingId, file, attrs, mimeType, mediaType, volumeName);
             case FileColumns.MEDIA_TYPE_PLAYLIST:
                 return scanItemPlaylist(existingId, file, attrs, mimeType, mediaType, volumeName);
             case FileColumns.MEDIA_TYPE_SUBTITLE:
@@ -1369,16 +1372,20 @@ public class ModernMediaScanner implements MediaScanner {
         return op;
     }
 
-    private static @NonNull ContentProviderOperation.Builder scanItemImage(long existingId,
+    private static @NonNull ContentProviderOperation.Builder scanItemImage( Context mContext,long existingId,
             File file, BasicFileAttributes attrs, String mimeType, int mediaType,
             String volumeName) {
+        if(mimeType !=null && mimeType.contains("png")){
+            mimeType = "image/jpeg";
+        }        
+        Log.w(TAG, "scanItemImage: " + file.getAbsolutePath() + ", mimeType=" + mimeType + ", mediaType=" + mediaType + ", volumeName=" + volumeName);        
         final ContentProviderOperation.Builder op = newUpsert(volumeName, existingId);
         withGenericValues(op, file, attrs, mimeType, mediaType);
 
         op.withValue(ImageColumns.DESCRIPTION, null);
 
         try (FileInputStream is = new FileInputStream(file)) {
-            final ExifInterface exif = new ExifInterface(is);
+            final ExifInterface exif = new ExifInterface(file);
 
             withResolutionValues(op, exif, file);
 
@@ -1405,9 +1412,28 @@ public class ModernMediaScanner implements MediaScanner {
 
             op.withValue(FileColumns._SPECIAL_FORMAT, SpecialFormatDetector.detect(exif, file));
         } catch (Exception e) {
+            triggerSystemMediaScan(mContext, file);
             logTroubleScanning(file, e);
         }
         return op;
+    }
+
+      public static void triggerSystemMediaScan(final Context context,final File file) {
+        try{
+             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                    Uri contentUri = Uri.fromFile(file);
+                    mediaScanIntent.setData(contentUri);
+                    context.sendBroadcast(mediaScanIntent);
+                    Log.i(TAG, "triggerSystemMediaScan contentUri" + contentUri.toString());
+                }
+            }, 100 * 3);
+            
+        }catch(Exception e){
+            e.printStackTrace();
+        }
     }
 
     private static @NonNull ContentProviderOperation.Builder scanItemFile(long existingId,
