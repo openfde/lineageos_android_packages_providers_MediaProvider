@@ -133,6 +133,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 /**
  * Modern implementation of media scanner.
  * <p>
@@ -403,6 +404,37 @@ public class ModernMediaScanner implements MediaScanner {
 
         @Override
         public void run() {
+            new Thread(() -> {
+                int maxAttempts = 3;
+                int intervalSeconds = 10;
+
+                for (int i = 0; i < maxAttempts; i++) {
+                    if (FileUtils.checkFdePtfsDirs()) {
+                        Log.d(TAG, "Found on attempt " + (i + 1));
+                        runScan();
+                        return;
+                    }
+
+                    if (i < maxAttempts - 1) {
+                        Log.d(TAG, "Retrying... attempt " + (i + 1));
+                        try {
+                            Thread.sleep(intervalSeconds * 1000L);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                            break;
+                        }
+                    }
+                }
+
+                Log.d(TAG, "All attempts failed, still runScan()");
+                runScan();
+
+            }).start();
+            
+        }
+
+
+        private void runScan(){
             addActiveScan(this);
             try {
                 runInternal();
@@ -410,6 +442,8 @@ public class ModernMediaScanner implements MediaScanner {
                 removeActiveScan(this);
             }
         }
+       
+
 
         private void runInternal() {
             final long startTime = SystemClock.elapsedRealtime();
