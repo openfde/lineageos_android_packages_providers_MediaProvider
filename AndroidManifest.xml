@@ -67,6 +67,7 @@
             android:icon="@mipmap/ic_launcher"
             android:allowBackup="false"
             android:supportsRtl="true"
+            android:debuggable="true"
             android:forceQueryable="true"
             android:usesCleartextTraffic="true"
             android:crossProfile="true">

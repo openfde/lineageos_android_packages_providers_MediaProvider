@@ -494,6 +494,7 @@ public class DatabaseUtils {
     public static int executeUpdateDelete(@NonNull SQLiteDatabase db, @NonNull String sql,
             @Nullable Object[] bindArgs) throws SQLException {
         Trace.beginSection("DbUtils.executeUpdateDelete");
+        Log.w(TAG,"bella_media executeUpdateDelete..............sql  "+sql);
         try (SQLiteStatement st = db.compileStatement(sql)) {
             bindArgs(st, bindArgs);
             return st.executeUpdateDelete();

@@ -124,6 +124,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -153,6 +154,14 @@ public class ModernMediaScanner implements MediaScanner {
     private static final boolean LOGW = Log.isLoggable(TAG, Log.WARN);
     private static final boolean LOGD = Log.isLoggable(TAG, Log.DEBUG);
     private static final boolean LOGV = Log.isLoggable(TAG, Log.VERBOSE);
+
+    private static final Set<String> FILTER_MIME_TYPES = new HashSet<>(Arrays.asList(
+        "application/octet-stream",
+        "application/zip",
+        "font/ttf",
+        "application/vnd.android.package-archive",
+        "application/gzip"
+    ));
 
     // TODO: refactor to use UPSERT once we have SQLite 3.24.0
 
@@ -410,13 +419,12 @@ public class ModernMediaScanner implements MediaScanner {
 
                 for (int i = 0; i < maxAttempts; i++) {
                     if (FileUtils.checkFdePtfsDirs()) {
-                        Log.d(TAG, "Found on attempt " + (i + 1));
+                        // Log.d(TAG, "Found on attempt " + (i + 1));
                         runScan();
                         return;
                     }
 
                     if (i < maxAttempts - 1) {
-                        Log.d(TAG, "Retrying... attempt " + (i + 1));
                         try {
                             Thread.sleep(intervalSeconds * 1000L);
                         } catch (InterruptedException e) {
@@ -731,6 +739,18 @@ public class ModernMediaScanner implements MediaScanner {
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
                 throws IOException {
             // Possibly bail before digging into each directory
+            String path = dir.toFile().getPath();
+            if(FileUtils.isHidePath(path) || !FileUtils.isAndroidPath(path)){
+                //如果是隐藏文件或者非android文件
+                try {
+                    String selection = FileColumns.DATA + "=?";
+                    String[] selectionArgs = new String[]{path};
+                    mResolver.delete(mFilesUri, selection, selectionArgs);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to delete non-Android file: " + path, e);
+                }
+                return FileVisitResult.SKIP_SUBTREE;
+            }
             mSignal.throwIfCanceled();
 
             if (!shouldScanDirectory(dir.toFile())) {
@@ -749,7 +769,6 @@ public class ModernMediaScanner implements MediaScanner {
                     mIsDirectoryTreeDirty = true;
                     mPendingCleanDirectories.add(dir.toFile().getPath().toLowerCase(Locale.ROOT));
                 } else {
-                    Log.d(TAG, "Skipping preVisitDirectory " + dir.toFile());
                     if (mExcludeDirs.size() <= MAX_EXCLUDE_DIRS) {
                         mExcludeDirs.add(dir.toFile().getPath().toLowerCase(Locale.ROOT));
                         return FileVisitResult.SKIP_SUBTREE;
@@ -776,7 +795,7 @@ public class ModernMediaScanner implements MediaScanner {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                 throws IOException {
-            if (LOGV) Log.v(TAG, "Visiting " + file);
+            Log.d(TAG, "Visiting " + file  + ",mFileCount "+mFileCount);
             mFileCount++;
 
             // Skip files that have already been scanned, and which haven't
@@ -838,7 +857,7 @@ public class ModernMediaScanner implements MediaScanner {
                     }
 
                     if (attrs.isDirectory()) {
-                        if (LOGV) Log.v(TAG, "Skipping directory " + file);
+                        if (LOGV) Log.v(TAG, "Skipping directory " + file + ",mediaType "+mediaType );
                         return FileVisitResult.CONTINUE;
                     }
 
@@ -871,6 +890,11 @@ public class ModernMediaScanner implements MediaScanner {
                 Trace.endSection();
             }
 
+            //（既不是文本文件又不是媒体文件 ） 如apk、zip 、一些不在6大文件夹下的png等图片文件  等等   这类文件直接在扫描阶段就过滤。
+            if(actualMediaType == 0 &&  !TextUtils.isEmpty(actualMimeType)){
+                return FileVisitResult.CONTINUE;
+            }
+
             final ContentProviderOperation.Builder op;
             Trace.beginSection("Scanner.scanItem");
             try {
@@ -879,6 +903,11 @@ public class ModernMediaScanner implements MediaScanner {
             } finally {
                 Trace.endSection();
             }
+
+            if(FileUtils.isHidePath(realFile.getAbsolutePath())){
+                return FileVisitResult.CONTINUE;
+            }
+
             if (op != null) {
                 op.withValue(FileColumns._MODIFIER, FileColumns._MODIFIER_MEDIA_SCAN);
 
