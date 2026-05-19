@@ -1656,6 +1656,30 @@ public class FileUtils {
         return false;
     }
 
+    public static boolean isHidePath(String path) {
+        int len = path.length();
+        for (int i = 1; i < len; i++) {
+            if (path.charAt(i) == '/' && i + 1 < len) {
+                if (path.charAt(i + 1) == '.') {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean isAndroidPath(String path) {
+        if(path.equals("/storage/emulated/0") || path.equals("/storage/emulated/") || path.equals("/storage/") ||
+                path.equals("/storage/emulated/0/Android") || path.equals("/storage/emulated/0/Android/media") ||
+                path.contains("Desktop") || path.contains(Environment.DIRECTORY_DCIM) || path.contains(Environment.DIRECTORY_DOWNLOADS)||
+                path.contains( Environment.DIRECTORY_MOVIES)|| path.contains(Environment.DIRECTORY_MUSIC) ||
+                path.contains(Environment.DIRECTORY_AUDIOBOOKS) ||path.contains(Environment.DIRECTORY_RECORDINGS) ||
+                path.contains(Environment.DIRECTORY_PICTURES) || path.contains(Environment.DIRECTORY_DOCUMENTS)){
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Test if this given file should be considered hidden.
      */

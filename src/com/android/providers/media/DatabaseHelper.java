@@ -942,7 +942,7 @@ public class DatabaseHelper extends SQLiteOpenHelper implements AutoCloseable {
      * clustered and sent when the transaction completes.
      */
     public void notifyChange(@NonNull Uri uri, int flags) {
-        if (LOGV) Log.v(TAG, "Notifying " + uri);
+        if (LOGV) Log.v(TAG, "Notifying " + uri + ",flags "+flags);
 
         // Also sync change to the network.
         final int notifyFlags = flags | ContentResolver.NOTIFY_SYNC_TO_NETWORK;

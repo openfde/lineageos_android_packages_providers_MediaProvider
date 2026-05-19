@@ -392,6 +392,9 @@ public class MediaProvider extends ContentProvider {
     /** File access by uid is a synthetic path corresponding to a picker URI */
     private static final int FLAG_TRANSFORM_PICKER = 1 << 2;
 
+    private  long lastUpdateTime = 0;
+    private static final int SCALE_TIME = 2000;
+
     /**
      * These directory names aren't declared in Environment as final variables, and so we need to
      * have the same values in separate final variables in order to have them considered constant
@@ -1007,7 +1010,6 @@ public class MediaProvider extends ContentProvider {
         public void onInsert(@NonNull DatabaseHelper helper, @NonNull FileRow insertedRow) {
             if (helper.isDatabaseRecovering()) {
                 // Do not perform any trigger operation if database is recovering
-                Log.w(TAG, "onInsert---- 00000000000");
                 return;
             }
 
@@ -1025,8 +1027,6 @@ public class MediaProvider extends ContentProvider {
                     try {
                         File file = queryForDataFile(fileUri, null);
                         String newPath = file.getPath();
-                        Log.w(TAG, "onInsert---- insertedRow:"+insertedRow.getPath() + ", newPath: "+newPath);
-
                         if(newPath.contains("Desktop")){
                             updateDesktopFile(newPath,"onInsert");
                         }    
@@ -4838,8 +4838,11 @@ public class MediaProvider extends ContentProvider {
         }
     }
 
+
     private long insertDirectory(@NonNull SQLiteDatabase db, @NonNull String path) {
-        if (LOGV) Log.v(TAG, "inserting directory " + path);
+        if(FileUtils.isHidePath(path) ||  !FileUtils.isAndroidPath(path) ){
+            return  -1;
+        }
         ContentValues values = new ContentValues();
         values.put(FileColumns.FORMAT, MtpConstants.FORMAT_ASSOCIATION);
         values.put(FileColumns.DATA, path);
@@ -5041,11 +5044,71 @@ public class MediaProvider extends ContentProvider {
         }
     }
 
+    private void verifyDocumentsFile(){
+        mExternalDatabase.runWithTransaction((db) -> {
+                db.execSQL("""
+                    DELETE FROM files
+                    WHERE media_type = 6
+                    AND _id IN (
+                        SELECT _id FROM files
+                        WHERE media_type = 6
+                        ORDER BY date_added DESC
+                        LIMIT -1 OFFSET 20
+                    )
+                    """);
+            return null ;
+        });
+    }
+
+    public void deleteNotAndroidFile(String path){
+        mExternalDatabase.runWithTransaction((db) -> {
+            db.execSQL("delete from files where _data=?", new String[] { path });
+            return null ;
+        });
+    }
+
+    private void verifyDocumentsHasOwnPackageNameFile(){
+        mExternalDatabase.runWithTransaction((db) -> {
+            db.execSQL("""
+                    DELETE FROM files
+                    WHERE media_type = 6
+                    AND owner_package_name IS NULL
+                    """);
+            return null ;
+        });
+    }
+
+    private void verifyDocumentsDirMediaFile(){
+        mExternalDatabase.runWithTransaction((db) -> {
+            db.execSQL("""
+                    DELETE FROM files
+                    WHERE media_type IN (1,2,3)
+                    AND _data like ('%Documents%')
+                    """);
+            return null ;
+        });
+    }
+
+    private void verifyNoneFile(){
+        mExternalDatabase.runWithTransaction((db) -> {
+            db.execSQL("""
+                    DELETE FROM files
+                    WHERE media_type = 6
+                    """);
+            return null ;
+        });
+    }
+
+
     private Uri insertFile(@NonNull SQLiteQueryBuilder qb, @NonNull DatabaseHelper helper,
             int match, @NonNull Uri uri, @NonNull Bundle extras, @NonNull ContentValues values,
             int mediaType) throws VolumeArgumentException, VolumeNotFoundException {
         boolean wasPathEmpty = !values.containsKey(MediaStore.MediaColumns.DATA)
                 || TextUtils.isEmpty(values.getAsString(MediaStore.MediaColumns.DATA));
+
+        verifyDocumentsFile();
+        verifyDocumentsHasOwnPackageNameFile();
+        verifyDocumentsDirMediaFile();
 
         // Make sure all file-related columns are defined
         ensureUniqueFileColumns(match, uri, extras, values, null);
@@ -5060,6 +5123,7 @@ public class MediaProvider extends ContentProvider {
 
         // compute bucket_id and bucket_display_name for all files
         String path = values.getAsString(MediaStore.MediaColumns.DATA);
+     
         FileUtils.computeValuesFromData(values, isFuseThread());
         values.put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis() / 1000);
 
@@ -5095,6 +5159,8 @@ public class MediaProvider extends ContentProvider {
         if (mimeType == null && path != null && format != MtpConstants.FORMAT_ASSOCIATION) {
             mimeType = MimeUtils.resolveMimeType(new File(path));
         }
+
+
 
         if (mimeType != null) {
             values.put(FileColumns.MIME_TYPE, mimeType);
@@ -5351,6 +5417,8 @@ public class MediaProvider extends ContentProvider {
         }
     }
 
+
+    String lastOwnerPackageName = null;
     @Nullable
     private Uri insertInternal(@NonNull Uri uri, @Nullable ContentValues initialValues,
             @Nullable Bundle extras) throws FallbackException {
@@ -5483,7 +5551,6 @@ public class MediaProvider extends ContentProvider {
                     initialValues.remove("secondary_directory");
                 }
             }
-
             if (isCallingPackageSelf() || isCallingPackageShell()) {
                 // When media inserted by ourselves during a scan, or by the
                 // shell, the best we can do is guess ownership based on path
@@ -5491,6 +5558,10 @@ public class MediaProvider extends ContentProvider {
                 ownerPackageName = initialValues.getAsString(FileColumns.OWNER_PACKAGE_NAME);
                 if (TextUtils.isEmpty(ownerPackageName)) {
                     ownerPackageName = extractPathOwnerPackageName(path);
+                }
+                if (TextUtils.isEmpty(ownerPackageName)) {
+                    ownerPackageName = lastOwnerPackageName ;
+                    lastOwnerPackageName = null;
                 }
             } else if (isCallingPackageDelegator()) {
                 // When caller is a delegator, we handle ownership as a hybrid
@@ -5643,8 +5714,46 @@ public class MediaProvider extends ContentProvider {
                 final boolean isDownload = maybeMarkAsDownload(initialValues);
                 final String mimeType = initialValues.getAsString(MediaColumns.MIME_TYPE);
                 final int mediaType = MimeUtils.resolveMediaType(mimeType);
-                newUri = insertFile(qb, helper, match, uri, extras, initialValues,
-                        mediaType);
+                Log.d(TAG,"bella_media mimeType  "+mimeType  + " ,mediaType "+mediaType + ",path "+path +",ownerPackageName "+ownerPackageName );
+                if(path == null){
+                    lastOwnerPackageName = ownerPackageName;
+                    break;
+                }
+                if(mediaType == 0 &&  !TextUtils.isEmpty(mimeType)){
+                    // dir or error file
+                }else{
+                    if(FileUtils.isHidePath(path)  ||  !FileUtils.isAndroidPath(path)){
+                        // Hidden path or non-Android path, skip insertion
+                        Log.d(TAG, "bella_media insert isHidePath or not androidPath " );
+                    }else {
+                        //文本文件
+                        if(mediaType == FileColumns.MEDIA_TYPE_DOCUMENT || mediaType == FileColumns.MEDIA_TYPE_NONE){
+                            long currentTime = System.currentTimeMillis();
+                            if(currentTime - lastUpdateTime > SCALE_TIME){
+                                if (!TextUtils.isEmpty(ownerPackageName)) {
+                                    newUri = insertFile(qb, helper, match, uri, extras, initialValues,
+                                            mediaType);
+                                }
+                            }
+                            lastUpdateTime = currentTime;
+                        }else {
+                            if(path.contains("Documents")  ) {
+                                boolean isMediaFile = (mediaType == FileColumns.MEDIA_TYPE_VIDEO
+                                        || mediaType == FileColumns.MEDIA_TYPE_IMAGE
+                                        || mediaType == FileColumns.MEDIA_TYPE_AUDIO);
+                                if (!isMediaFile) {
+                                    newUri = insertFile(qb, helper, match, uri, extras, initialValues, mediaType);
+                                }else{
+                                    //media file not insert
+                                }
+                            }else {
+                                newUri = insertFile(qb, helper, match, uri, extras, initialValues,
+                                        mediaType);
+                            }
+                        }
+                    }
+                }
+                
                 break;
             }
 
